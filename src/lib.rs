@@ -6,16 +6,12 @@ pub mod error {
         JumpPathNotExists,
         NoHomeDirectory,
         HomeDirectoryAlreadyExists,
+        JumpCommandError(String),
         SaveFileAlreadyExists,
+        ParseError(String),
         CantParseSaveFile(String),
         Other(String),
     }
-    /*
-     2. `JumpError` doesn't implement `std::fmt::Display`
-        the trait `std::fmt::Display` is not implemented for `JumpError`
-        in format strings you may be able to use `{:?}`
-        (or {:#?} for pretty-print) instead [E0277]
-    */
     impl std::fmt::Display for JumpError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
@@ -26,9 +22,11 @@ pub mod error {
                     write!(f, "Home directory already exists!")
                 }
                 JumpError::SaveFileAlreadyExists => write!(f, "Save file already exists!"),
+                JumpError::ParseError(error) => write!(f, "Invalid input arguments: {}", error),
                 JumpError::CantParseSaveFile(error) => {
                     write!(f, "Cant parse save file, jso parser error: {}", error)
                 }
+                JumpError::JumpCommandError(error) => write!(f, "System 'cd' error: {}", error),
                 JumpError::Other(error) => write!(f, "Other error: {}", error),
             }
         }
@@ -47,7 +45,12 @@ pub mod fs {
     extern crate json;
 
     use crate::error::JumpError;
-    use std::{collections::HashMap, fs, io, path};
+    use std::{
+        collections::HashMap,
+        fs,
+        io::{self, Write},
+        path,
+    };
 
     pub fn create_save_folder() -> Result<path::PathBuf, JumpError> {
         let home_dir_path = match home::home_dir() {
@@ -67,8 +70,11 @@ pub mod fs {
 
     pub fn create_save_file() -> Result<path::PathBuf, JumpError> {
         let save_file_path = create_save_folder()?.join("jumps.json");
-        match fs::File::create_new(&save_file_path) {
-            Ok(_) => {}
+        let file = fs::File::create_new(&save_file_path);
+        match file {
+            Ok(mut file) => {
+                write!(file, "{{}}").map_err(|e| JumpError::Other(e.to_string()))?;
+            }
             Err(e) => match e.kind() {
                 io::ErrorKind::AlreadyExists => {}
                 _ => return Err(JumpError::Other(e.to_string())),
@@ -95,16 +101,16 @@ pub mod fs {
         }
         Ok(data)
     }
+
+    pub fn jump_print(target: &str) -> Result<(), JumpError> {
+        println!("{}", target);
+        Ok(())
+    }
 }
 
 pub mod data {
     use crate::error::JumpError;
-    use core::fmt;
-    use std::{
-        collections::HashMap,
-        io::{self, Write},
-        path,
-    };
+    use std::{collections::HashMap, io::Write, path};
     pub struct JumpData {
         paths: HashMap<String, String>,
     }
@@ -156,11 +162,103 @@ pub mod data {
             Ok(())
         }
     }
-    impl fmt::Debug for JumpData {
+    impl core::fmt::Debug for JumpData {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("JumpData")
                 .field("paths", &self.paths)
                 .finish()
         }
+    }
+
+    use prettytable::{row, Table};
+
+    impl std::fmt::Display for JumpData {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let mut table = Table::new();
+            table.add_row(row!["Jump name", "Jump path"]);
+
+            for (key, value) in &self.paths {
+                table.add_row(row![key, value]);
+            }
+            writeln!(f, "{}", table)?;
+
+            Ok(())
+        }
+    }
+}
+
+pub mod io {
+    use getopts::Options;
+
+    use crate::error::JumpError;
+
+    pub enum Scenario {
+        HelpMe,
+        AddJumpCurrent(String),
+        AddJumpWithTarget(String, String),
+        RemoveJump(String),
+        ShowSaved,
+        GoJump(String),
+        Sleep,
+    }
+
+    pub fn process_help(opts: &Options, exe_path_str: &str) -> () {
+        let brief = format!("Usage: {} FILE [options]", "Jump");
+        print!("{}", opts.usage(&brief));
+    }
+
+    pub fn show_save_data(data: &crate::data::JumpData) {}
+
+    pub fn gen_opts() -> Options {
+        let mut opts = Options::new();
+        opts.optflag("h", "help", "Show all flags/opts");
+        opts.optflag("s", "show", "Show saved jumps");
+        opts.optopt("a", "add", "Add jump point", "Jump name");
+        opts.optopt("r", "remove", "Remove jump point", "Jump name");
+        opts.optopt(
+            "t",
+            "target",
+            "Specify target path for specific name",
+            "Target path",
+        );
+        opts
+    }
+
+    pub fn parse_args(opts: &Options, input: &Vec<String>) -> Result<Scenario, JumpError> {
+        let matches = match opts.parse(&input[1..]) {
+            Ok(m) => m,
+            Err(e) => return Err(JumpError::ParseError(e.to_string())),
+        };
+        if matches.opt_present("h") {
+            return Ok(Scenario::HelpMe);
+        }
+        if matches.opt_present("s") {
+            return Ok(Scenario::ShowSaved);
+        }
+        if matches.opt_present("r") {
+            let name = matches.opt_str("r").ok_or_else(|| {
+                JumpError::ParseError(String::from("No name for adding are provided"))
+            })?;
+            return Ok(Scenario::RemoveJump(name));
+        }
+        if matches.opt_present("a") {
+            let name = matches.opt_str("a").ok_or_else(|| {
+                JumpError::ParseError(String::from("No name for adding are provided"))
+            })?;
+            if !matches.opt_present("t") {
+                return Ok(Scenario::AddJumpCurrent(name));
+            } else {
+                let target = matches.opt_str("t").ok_or_else(|| {
+                    JumpError::ParseError(String::from("No target-path for adding are provided"))
+                })?;
+                return Ok(Scenario::AddJumpWithTarget(name, target));
+            }
+        }
+        if !matches.free.is_empty() {
+            let first_arg = &matches.free[0];
+            return Ok(Scenario::GoJump(first_arg.clone()));
+        }
+
+        Ok(Scenario::Sleep)
     }
 }

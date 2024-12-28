@@ -1,0 +1,20 @@
+EXECUTABLE="$(dirname "$0")/jump"
+
+if [[ ! -x "$EXECUTABLE" ]]; then
+    echo "Script error: Jump-executable not found: $EXECUTABLE"
+    exit 1
+fi
+
+if [[ $# -eq 1 && "$1" != -* ]]; then
+    TARGET_PATH=$("$EXECUTABLE" "$1")
+
+    if [[ -n "$TARGET_PATH" && -d "$TARGET_PATH" ]]; then
+        echo "Changing directory to: $TARGET_PATH"
+        cd "$TARGET_PATH" || exit 1
+    else
+        echo "Error: Unable to change to directory: $TARGET_PATH"
+        exit 1
+    fi
+else
+    "$EXECUTABLE" "$@"
+fi

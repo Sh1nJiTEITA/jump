@@ -1,9 +1,16 @@
 [package]
 name = "jump"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+build = "build.rs"
+include = ["scripts/jmp"]
 
 [dependencies]
 home = "0.5.11"
 json = "0.12.4"
+getopts = "0.2"
+prettytable = "0.10.0"
+
+[package.metadata.cargo-install]
+extra-files = ["scripts/jmp"]
 
