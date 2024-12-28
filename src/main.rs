@@ -11,7 +11,7 @@ fn main() -> Result<(), io::Error> {
     let scenario = parse_args(&opts, &args)?;
     match scenario {
         Scenario::Sleep => {}
-        Scenario::HelpMe => jump::io::process_help(&opts, &args[0]),
+        Scenario::HelpMe => jump::io::process_help(&opts),
         Scenario::ShowSaved => print!("{}", data),
         Scenario::AddJumpCurrent(name) => {
             let current_path = match std::fs::canonicalize(std::env::current_dir().unwrap()) {

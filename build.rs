@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn set_script_permission(script_path: &PathBuf) {
     #[cfg(unix)]

@@ -202,24 +202,22 @@ pub mod io {
         Sleep,
     }
 
-    pub fn process_help(opts: &Options, exe_path_str: &str) -> () {
-        let brief = format!("Usage: {} FILE [options]", "Jump");
+    pub fn process_help(opts: &Options) -> () {
+        let brief = format!("Default usage: {} JUMP_NAME", "Jump");
         print!("{}", opts.usage(&brief));
     }
-
-    pub fn show_save_data(data: &crate::data::JumpData) {}
 
     pub fn gen_opts() -> Options {
         let mut opts = Options::new();
         opts.optflag("h", "help", "Show all flags/opts");
         opts.optflag("s", "show", "Show saved jumps");
-        opts.optopt("a", "add", "Add jump point", "Jump name");
-        opts.optopt("r", "remove", "Remove jump point", "Jump name");
+        opts.optopt("a", "add", "Add jump point", "JUMP_NAME");
+        opts.optopt("r", "remove", "Remove jump point", "JUMP_NAME");
         opts.optopt(
             "t",
             "target",
             "Specify target path for specific name",
-            "Target path",
+            "JUMP_TARGET",
         );
         opts
     }
