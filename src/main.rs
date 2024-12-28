@@ -14,7 +14,10 @@ fn main() -> Result<(), io::Error> {
         Scenario::HelpMe => jump::io::process_help(&opts, &args[0]),
         Scenario::ShowSaved => print!("{}", data),
         Scenario::AddJumpCurrent(name) => {
-            let current_path = std::fs::canonicalize(std::path::PathBuf::from(&args[0]))?;
+            let current_path = match std::fs::canonicalize(std::env::current_dir().unwrap()) {
+                Ok(v) => v,
+                Err(e) => panic!("Adding error: {}", e.to_string()),
+            };
             data.insert(&name, current_path.to_str().unwrap())?;
         }
         Scenario::AddJumpWithTarget(name, target) => data.insert(&name, &target)?,
